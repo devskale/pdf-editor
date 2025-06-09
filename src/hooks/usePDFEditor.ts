@@ -185,7 +185,7 @@ export const usePDFEditor = () => {
     try {
       // Create a fresh copy of the ArrayBuffer to prevent detachment issues
       const freshArrayBuffer = fileRef.current.slice(0);
-      const pdfDoc = await PDFDocument.load(freshArrayBuffer);
+      const pdfDoc = await PDFDocument.load(freshArrayBuffer, { ignoreEncryption: true });
       const pages = pdfDoc.getPages();
 
       // Helper function to convert hex color to RGB
@@ -282,7 +282,7 @@ export const usePDFEditor = () => {
       
       console.log('PDF saved successfully');
     } catch (error) {
-      console.error('Error saving PDF:', error);
+      console.error('Error saving PDF:', error, (error as Error).stack);
       alert('Failed to save PDF. Please try again.');
     }
   }, [pdfState.annotations, pdfState.scale]);
