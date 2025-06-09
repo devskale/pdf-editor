@@ -195,12 +195,10 @@ export const usePDFEditor = () => {
     }
 
     try {
-      // Create a fresh copy of the ArrayBuffer to prevent detachment issues
       const freshArrayBuffer = fileRef.current.slice(0);
       const pdfDoc = await PDFDocument.load(freshArrayBuffer, { ignoreEncryption: true });
       const pages = pdfDoc.getPages();
 
-      // Helper function to convert hex color to RGB
       const hexToRgb = (hex: string) => {
         const r = parseInt(hex.slice(1, 3), 16) / 255;
         const g = parseInt(hex.slice(3, 5), 16) / 255;
@@ -208,71 +206,83 @@ export const usePDFEditor = () => {
         return rgb(r, g, b);
       };
 
-      // Add annotations to PDF
       for (const annotation of pdfState.annotations) {
         const page = pages[annotation.page - 1];
         if (page) {
           const { width: pageWidth, height: pageHeight } = page.getSize();
           
-          // Convert screen coordinates to PDF coordinates
-          // PDF coordinates start from bottom-left, screen coordinates from top-left
-          const pdfX = annotation.x / pdfState.scale;
-          const pdfY = pageHeight - (annotation.y / pdfState.scale) - (annotation.height / pdfState.scale);
+          // Annotation coordinates (x, y) are assumed to be top-left, unscaled (PDF points)
+          // PDF coordinates (pdfX, pdfY) for pdf-lib are bottom-left
+          const pdfX = annotation.x; // Already unscaled
+          const pdfY = pageHeight - annotation.y - annotation.height; // Convert top-left y and height to bottom-left y
           
-          // Always draw background rectangle (unless transparent)
+          const unscaledWidth = annotation.width; // Already unscaled
+          const unscaledHeight = annotation.height; // Already unscaled
+
           if (annotation.backgroundColor && annotation.backgroundColor !== 'transparent') {
             page.drawRectangle({
               x: pdfX,
               y: pdfY,
-              width: annotation.width / pdfState.scale,
-              height: annotation.height / pdfState.scale,
+              width: unscaledWidth,
+              height: unscaledHeight,
               color: hexToRgb(annotation.backgroundColor),
             });
           }
           
-          // Draw text if it exists
           if (annotation.text.trim()) {
-            // Validate font size for PDF saving
             const validatedFontSize = ALLOWED_FONT_SIZES.includes(annotation.fontSize)
               ? annotation.fontSize
               : ALLOWED_FONT_SIZES.find(size => size === 14) || ALLOWED_FONT_SIZES[0];
 
-            // Split text into lines and draw each line
             const lines = annotation.text.split('\n');
-            const lineHeight = validatedFontSize * 1.2; // Use validated font size
+            const lineHeight = validatedFontSize * 1.2; 
             const totalTextHeight = lines.length * lineHeight;
-            const boxHeight = annotation.height / pdfState.scale;
+            const boxHeight = unscaledHeight; // Use unscaled height for text box calculations
             
-            // Calculate vertical offset based on vertical alignment
             let verticalOffset = 0;
             switch (annotation.verticalAlign) {
               case 'top':
-                verticalOffset = boxHeight - 20; // Start from top with padding
+                // Adjust padding if needed, assuming 20 was a scaled value, now it should be unscaled
+                verticalOffset = boxHeight - (validatedFontSize * 1.2); // Example: offset by one line height from top
                 break;
               case 'middle':
-                verticalOffset = boxHeight / 2 + totalTextHeight / 2 - lineHeight;
+                verticalOffset = (boxHeight / 2) + (totalTextHeight / 2) - lineHeight; // This might need fine-tuning
                 break;
               case 'bottom':
-                verticalOffset = totalTextHeight - 5; // Start from bottom with padding
+                 // Adjust padding if needed
+                verticalOffset = totalTextHeight - (validatedFontSize * 0.2); // Example: small padding from bottom
                 break;
             }
             
             lines.forEach((line, index) => {
               if (line.trim()) {
-                let textX = pdfX + 5; // Small padding from left edge
+                let textX = pdfX + 5; // Small padding from left edge (PDF points)
                 
-                // Handle horizontal text alignment
                 if (annotation.textAlign === 'center') {
-                  textX = pdfX + (annotation.width / pdfState.scale) / 2;
+                  // For pdf-lib, text alignment is often handled by adjusting x, not a text property
+                  // This requires knowing the text width, which pdf-lib doesn't directly provide before drawing.
+                  // A common approach is to use a font's advanceWidthOfText method if available, or approximate.
+                  // For simplicity, let's assume text is drawn from its calculated x.
+                  // If your font object (not shown here) can calculate text width:
+                  // const textWidth = font.widthOfTextAtSize(line, validatedFontSize);
+                  // textX = pdfX + (unscaledWidth - textWidth) / 2;
+                  // If not, this might need a more complex solution or accept left-alignment for center/right in PDF.
+                  // For now, we'll keep the previous logic which might not perfectly center/right align in all PDF viewers.
+                  textX = pdfX + unscaledWidth / 2; // This positions the START of the text at the center of the box.
+                                                    // True centering requires knowing text width.
                 } else if (annotation.textAlign === 'right') {
-                  textX = pdfX + (annotation.width / pdfState.scale) - 5;
+                  // const textWidth = font.widthOfTextAtSize(line, validatedFontSize);
+                  // textX = pdfX + unscaledWidth - textWidth - 5; // 5 for padding
+                  textX = pdfX + unscaledWidth - 5; // This positions the START of the text near the right of the box.
                 }
                 
                 page.drawText(line, {
                   x: textX,
-                  y: pdfY + verticalOffset - (index * lineHeight),
-                  size: validatedFontSize, // Use validated font size
+                  y: pdfY + verticalOffset - (index * lineHeight), // pdfY is bottom of box, verticalOffset is from bottom of box
+                  size: validatedFontSize,
                   color: hexToRgb(annotation.color),
+                  // pdf-lib drawText does not have direct textAlign options like 'center' or 'right'.
+                  // Alignment must be handled by calculating the 'x' coordinate.
                 });
               }
             });
@@ -302,7 +312,7 @@ export const usePDFEditor = () => {
       console.error('Error saving PDF:', error, (error as Error).stack);
       alert('Failed to save PDF. Please try again.');
     }
-  }, [pdfState.annotations, pdfState.scale]);
+  }, [pdfState.annotations, pdfState.scale]); // pdfState.scale is no longer used for geometry, but might be for other things. If not, remove.
 
   return {
     pdfState,

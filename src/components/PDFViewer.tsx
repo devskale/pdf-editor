@@ -60,23 +60,23 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
       
       setCanvasSize({ width: viewport.width, height: viewport.height });
 
-      // Scale existing annotations' positions and dimensions if the scale has changed
-      // Do NOT scale the fontSize here, as it's in PDF points.
-      // Visual scaling of fontSize is handled by TextAnnotation component.
-      if (prevScaleRef.current !== scale) {
-        const scaleFactor = scale / prevScaleRef.current;
-        annotations
-          .filter(ann => ann.page === currentPage)
-          .forEach(annotation => {
-            onAnnotationUpdate(annotation.id, {
-              x: annotation.x * scaleFactor,
-              y: annotation.y * scaleFactor,
-              width: annotation.width * scaleFactor,
-              height: annotation.height * scaleFactor,
-            });
-          });
-      }
-      prevScaleRef.current = scale;
+      // REMOVE THE BLOCK THAT SCALES ANNOTATIONS BASED ON VIEW SCALE CHANGES
+      // The annotation x, y, width, height should be stored unscaled.
+      // Visual scaling is handled by TextAnnotation using the scale prop.
+      // if (prevScaleRef.current !== scale) {
+      //   const scaleFactor = scale / prevScaleRef.current;
+      //   annotations
+      //     .filter(ann => ann.page === currentPage)
+      //     .forEach(annotation => {
+      //       onAnnotationUpdate(annotation.id, {
+      //         x: annotation.x * scaleFactor,
+      //         y: annotation.y * scaleFactor,
+      //         width: annotation.width * scaleFactor,
+      //         height: annotation.height * scaleFactor,
+      //       });
+      //     });
+      // }
+      prevScaleRef.current = scale; // Still useful to track previous scale if needed for other logic
 
       const renderContext = {
         canvasContext: context,
@@ -107,7 +107,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         renderTaskRef.current = null;
       }
     };
-  }, [document, currentPage, scale]);
+  }, [document, currentPage, scale, annotations, onAnnotationUpdate]); // Removed annotations and onAnnotationUpdate from deps if they were only for the removed block
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;

@@ -24,15 +24,15 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState<string | null>(null);
+  // dragStart now stores screen-based offset or initial click position
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [tempText, setTempText] = useState(annotation.text);
 
-  // Validate font size (remains in PDF points)
   const validatedFontSize = ALLOWED_FONT_SIZES.includes(annotation.fontSize)
     ? annotation.fontSize
     : ALLOWED_FONT_SIZES.find(size => size === 14) || ALLOWED_FONT_SIZES[0]; 
 
-  // Temporary position/size state during drag/resize
+  // tempPosition and tempSize store UN SCALED values
   const [tempPosition, setTempPosition] = useState({ x: annotation.x, y: annotation.y });
   const [tempSize, setTempSize] = useState({ width: annotation.width, height: annotation.height });
 
@@ -82,87 +82,113 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
     }
   };
 
-  console.log('TextAnnotation rendered, input fontSize:', annotation.fontSize, 'validated fontSize:', validatedFontSize);
+  console.log('TextAnnotation rendered, input fontSize:', annotation.fontSize, 'validated fontSize:', validatedFontSize, 'scale:', scale);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
-
+    
     const target = e.target as HTMLElement;
     if (target.classList.contains('resize-handle')) {
       setIsResizing(target.dataset.direction || null);
+      // Store initial screen click for resize delta calculation
       setDragStart({ x: e.clientX, y: e.clientY });
     } else if (!isEditing && !target.classList.contains('delete-button')) {
       setIsDragging(true);
-      setDragStart({
-        x: e.clientX - annotation.x,
-        y: e.clientY - annotation.y
+      // Calculate offset from the scaled top-left of the annotation
+      setDragStart({ 
+        x: e.clientX - tempPosition.x * scale, 
+        y: e.clientY - tempPosition.y * scale 
       });
     }
   };
 
   const handleMouseMove = (e: MouseEvent) => {
     if (isDragging) {
-      const newX = e.clientX - dragStart.x;
-      const newY = e.clientY - dragStart.y;
+      // New position in screen coordinates, convert to unscaled
+      const newX = (e.clientX - dragStart.x) / scale;
+      const newY = (e.clientY - dragStart.y) / scale;
       setTempPosition({ x: Math.max(0, newX), y: Math.max(0, newY) });
     } else if (isResizing) {
+      // Deltas in screen coordinates
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
 
-      let newPosition = { ...tempPosition };
-      let newSize = { ...tempSize };
+      // Convert screen deltas to unscaled deltas
+      const unscaledDeltaX = deltaX / scale;
+      const unscaledDeltaY = deltaY / scale;
+      
+      let newPosition = { ...tempPosition }; // unscaled
+      let newSize = { ...tempSize }; // unscaled
+      
+      // Min dimensions (assuming these are unscaled PDF points)
+      const minWidth = 50;
+      const minHeight = 20;
 
       switch (isResizing) {
         case 'se':
           newSize = {
-            width: Math.max(50, tempSize.width + deltaX),
-            height: Math.max(20, tempSize.height + deltaY)
+            width: Math.max(minWidth, tempSize.width + unscaledDeltaX),
+            height: Math.max(minHeight, tempSize.height + unscaledDeltaY)
           };
           break;
         case 'sw':
-          newPosition.x = tempPosition.x + deltaX;
+          newPosition.x = tempPosition.x + unscaledDeltaX;
           newSize = {
-            width: Math.max(50, tempSize.width - deltaX),
-            height: Math.max(20, tempSize.height + deltaY)
+            width: Math.max(minWidth, tempSize.width - unscaledDeltaX),
+            height: Math.max(minHeight, tempSize.height + unscaledDeltaY)
           };
+          // Adjust x if width became minWidth due to dragging left
+          if (newSize.width === minWidth && tempSize.width - unscaledDeltaX < minWidth) {
+            newPosition.x = tempPosition.x + (tempSize.width - minWidth);
+          }
           break;
         case 'ne':
-          newPosition.y = tempPosition.y + deltaY;
+          newPosition.y = tempPosition.y + unscaledDeltaY;
           newSize = {
-            width: Math.max(50, tempSize.width + deltaX),
-            height: Math.max(20, tempSize.height - deltaY)
+            width: Math.max(minWidth, tempSize.width + unscaledDeltaX),
+            height: Math.max(minHeight, tempSize.height - unscaledDeltaY)
           };
+          // Adjust y if height became minHeight
+          if (newSize.height === minHeight && tempSize.height - unscaledDeltaY < minHeight) {
+            newPosition.y = tempPosition.y + (tempSize.height - minHeight);
+          }
           break;
         case 'nw':
           newPosition = {
-            x: tempPosition.x + deltaX,
-            y: tempPosition.y + deltaY
+            x: tempPosition.x + unscaledDeltaX,
+            y: tempPosition.y + unscaledDeltaY
           };
           newSize = {
-            width: Math.max(50, tempSize.width - deltaX),
-            height: Math.max(20, tempSize.height - deltaY)
+            width: Math.max(minWidth, tempSize.width - unscaledDeltaX),
+            height: Math.max(minHeight, tempSize.height - unscaledDeltaY)
           };
+          // Adjust x and y if size hit minimum
+          if (newSize.width === minWidth && tempSize.width - unscaledDeltaX < minWidth) {
+            newPosition.x = tempPosition.x + (tempSize.width - minWidth);
+          }
+          if (newSize.height === minHeight && tempSize.height - unscaledDeltaY < minHeight) {
+            newPosition.y = tempPosition.y + (tempSize.height - minHeight);
+          }
           break;
       }
-
+      
       setTempPosition(newPosition);
       setTempSize(newSize);
+      // Update dragStart for continuous resizing based on the new screen position
       setDragStart({ x: e.clientX, y: e.clientY });
     }
   };
 
   const handleMouseUp = () => {
     if (isDragging) {
-      // Only update history on mouse release
-      onUpdate({ x: tempPosition.x, y: tempPosition.y });
+      onUpdate({ x: tempPosition.x, y: tempPosition.y }); // tempPosition is unscaled
       setIsDragging(false);
     } else if (isResizing) {
-      // Only update history on mouse release
-      onUpdate({
-        x: tempPosition.x,
-        y: tempPosition.y,
-        width: tempSize.width,
-        height: tempSize.height
+      onUpdate({ 
+        x: tempPosition.x, // unscaled
+        y: tempPosition.y, // unscaled
+        width: tempSize.width, // unscaled
+        height: tempSize.height // unscaled
       });
       setIsResizing(null);
     }
@@ -172,13 +198,13 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
     if (isDragging || isResizing) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
-
+      
       return () => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
       };
     }
-  }, [isDragging, isResizing, dragStart, annotation, tempPosition, tempSize]);
+  }, [isDragging, isResizing, dragStart, scale, tempPosition, tempSize, onUpdate]); // Added scale, tempPosition, tempSize, onUpdate
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -224,13 +250,12 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
     }
   };
 
-  // Use temp position/size for display during drag/resize
+  // displayX, displayY, etc., are unscaled values from annotation or temp states
   const displayX = isDragging || isResizing ? tempPosition.x : annotation.x;
   const displayY = isDragging || isResizing ? tempPosition.y : annotation.y;
   const displayWidth = isDragging || isResizing ? tempSize.width : annotation.width;
   const displayHeight = isDragging || isResizing ? tempSize.height : annotation.height;
 
-  // Calculate scaled font size for display
   const displayFontSize = validatedFontSize * scale;
 
   return (
@@ -246,10 +271,11 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
           : 'border-transparent hover:border-blue-300'
       }`}
       style={{
-        left: `${displayX}px`,
-        top: `${displayY}px`,
-        width: `${displayWidth}px`,
-        height: `${displayHeight}px`,
+        // Apply scale for display
+        left: `${displayX * scale}px`,
+        top: `${displayY * scale}px`,
+        width: `${displayWidth * scale}px`,
+        height: `${displayHeight * scale}px`,
         backgroundColor: annotation.backgroundColor,
         cursor: isDragging ? 'grabbing' : 'grab'
       }}
