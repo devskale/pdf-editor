@@ -6,6 +6,10 @@ A simple and interactive PDF editor built with React and TypeScript, allowing us
 
 This application provides a user-friendly interface for loading PDF files and adding text-based annotations directly onto the document pages. Users can customize the text properties such as font family, size, color, and alignment. Annotations can be moved, resized, copied, and deleted. The editor also includes basic undo/redo functionality and the ability to save the annotated PDF.
 
+![Screenshot of React PDF Annotator](public/image.png)
+
+
+
 ## Features
 
 *   **Load PDF Documents:** Easily upload PDF files from your local machine.
