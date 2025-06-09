@@ -1,30 +1,35 @@
 {
-  "name": "pdf-editor",
-  "version": "1.0.0",
-  "author": "ShizukuIchi <shizukuichi@gmail.com>",
-  "homepage": "https://pdf-editor.now.sh",
+  "name": "vite-react-typescript-starter",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "build": "rollup -c",
-    "dev": "rollup -c -w",
-    "start": "sirv public"
-  },
-  "devDependencies": {
-    "@fullhuman/postcss-purgecss": "^2.1.2",
-    "@rollup/plugin-commonjs": "^11.0.0",
-    "@rollup/plugin-node-resolve": "^7.0.0",
-    "autoprefixer": "^9.7.6",
-    "open": "^7.0.3",
-    "postcss": "^7.0.27",
-    "postcss-load-config": "^2.1.0",
-    "rollup": "^1.20.0",
-    "rollup-plugin-livereload": "^1.0.0",
-    "rollup-plugin-svelte": "^5.0.3",
-    "rollup-plugin-terser": "^5.1.2",
-    "svelte": "^3.0.0",
-    "svelte-preprocess": "^3.7.4",
-    "tailwindcss": "^1.3.5"
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "sirv-cli": "^0.4.4"
+    "lucide-react": "^0.344.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "pdfjs-dist": "^3.11.174",
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.9.1",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.18",
+    "eslint": "^9.9.1",
+    "eslint-plugin-react-hooks": "^5.1.0-rc.0",
+    "eslint-plugin-react-refresh": "^0.4.11",
+    "globals": "^15.9.0",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.5.3",
+    "typescript-eslint": "^8.3.0",
+    "vite": "^5.4.2"
   }
 }
