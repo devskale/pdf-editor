@@ -9,7 +9,8 @@ import {
   ChevronLeft,
   ChevronRight, 
   Copy,
-  FileText
+  FileText,
+  Upload
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -26,6 +27,7 @@ interface ToolbarProps {
   onAddTextbox: () => void;
   selectedAnnotationId: string | null;
   onCopyAnnotation: () => void;
+  onFileUpload: (file: File) => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -41,8 +43,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onSave,
   onAddTextbox,
   selectedAnnotationId, 
-  onCopyAnnotation
+  onCopyAnnotation,
+  onFileUpload
 }) => {
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.type === 'application/pdf') {
+      onFileUpload(file);
+    }
+  };
+
   return (
     <div className="bg-white border-b border-slate-200 px-6 py-4">
       <div className="flex items-center justify-between">
@@ -50,6 +60,24 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <div className="flex items-center space-x-2">
             <FileText className="w-5 h-5 text-blue-600" />
             <span className="font-semibold text-slate-800">PDF Editor</span>
+          </div>
+          
+          <div className="h-6 w-px bg-slate-300" />
+          
+          <div className="relative">
+            <button
+              className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              title="Upload new PDF"
+            >
+              <Upload className="w-4 h-4" />
+              <span className="text-sm font-medium">Upload</span>
+            </button>
+            <input
+              type="file"
+              accept=".pdf"
+              onChange={handleFileInput}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            />
           </div>
           
           <div className="h-6 w-px bg-slate-300" />
