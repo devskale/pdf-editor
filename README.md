@@ -1,4 +1,4 @@
-# React PDF Editor
+# React PDF Annotator
 
 A simple and interactive PDF editor built with React and TypeScript, allowing users to add, edit, and manage text annotations on PDF documents.
 
