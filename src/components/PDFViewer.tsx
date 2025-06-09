@@ -107,7 +107,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         renderTaskRef.current = null;
       }
     };
-  }, [document, currentPage, scale, annotations, onAnnotationUpdate]); // Removed annotations and onAnnotationUpdate from deps if they were only for the removed block
+  }, [document, currentPage, scale]); // Only re-render when document, page, or scale changes
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
