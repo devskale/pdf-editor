@@ -60,7 +60,9 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
       
       setCanvasSize({ width: viewport.width, height: viewport.height });
 
-      // Scale existing annotations if the scale has changed
+      // Scale existing annotations' positions and dimensions if the scale has changed
+      // Do NOT scale the fontSize here, as it's in PDF points.
+      // Visual scaling of fontSize is handled by TextAnnotation component.
       if (prevScaleRef.current !== scale) {
         const scaleFactor = scale / prevScaleRef.current;
         annotations
@@ -71,7 +73,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
               y: annotation.y * scaleFactor,
               width: annotation.width * scaleFactor,
               height: annotation.height * scaleFactor,
-              fontSize: annotation.fontSize * scaleFactor,
             });
           });
       }
@@ -144,6 +145,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
               key={annotation.id}
               annotation={annotation}
               isSelected={selectedAnnotation === annotation.id}
+              scale={scale} // Pass the scale prop
               onClick={(e) => onAnnotationClick(annotation, e)}
               onUpdate={(updates) => onAnnotationUpdate(annotation.id, updates)}
               onDelete={() => onAnnotationDelete(annotation.id)}

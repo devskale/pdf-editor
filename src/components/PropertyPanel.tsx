@@ -22,7 +22,7 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
     );
   }
 
-  const fontSizes = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32];
+  const fontSizes = [6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32]; // Updated to include 6px
   const fontFamilies = ['Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'Georgia'];
 
   return (

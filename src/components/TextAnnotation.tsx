@@ -5,14 +5,18 @@ import { Annotation } from '../types';
 interface TextAnnotationProps {
   annotation: Annotation;
   isSelected: boolean;
+  scale: number; // Add scale prop
   onClick: (e: React.MouseEvent) => void;
   onUpdate: (updates: Partial<Annotation>) => void;
   onDelete: () => void;
 }
 
+const ALLOWED_FONT_SIZES = [6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32];
+
 export const TextAnnotation: React.FC<TextAnnotationProps> = ({
   annotation,
   isSelected,
+  scale, // Destructure scale from props
   onClick,
   onUpdate,
   onDelete
@@ -22,11 +26,16 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
   const [isResizing, setIsResizing] = useState<string | null>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [tempText, setTempText] = useState(annotation.text);
-  
+
+  // Validate font size (remains in PDF points)
+  const validatedFontSize = ALLOWED_FONT_SIZES.includes(annotation.fontSize)
+    ? annotation.fontSize
+    : ALLOWED_FONT_SIZES.find(size => size === 14) || ALLOWED_FONT_SIZES[0]; 
+
   // Temporary position/size state during drag/resize
   const [tempPosition, setTempPosition] = useState({ x: annotation.x, y: annotation.y });
   const [tempSize, setTempSize] = useState({ width: annotation.width, height: annotation.height });
-  
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const annotationRef = useRef<HTMLDivElement>(null);
 
@@ -73,20 +82,20 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
     }
   };
 
-  console.log('TextAnnotation rendered, fontSize:', annotation.fontSize);
+  console.log('TextAnnotation rendered, input fontSize:', annotation.fontSize, 'validated fontSize:', validatedFontSize);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     const target = e.target as HTMLElement;
     if (target.classList.contains('resize-handle')) {
       setIsResizing(target.dataset.direction || null);
       setDragStart({ x: e.clientX, y: e.clientY });
     } else if (!isEditing && !target.classList.contains('delete-button')) {
       setIsDragging(true);
-      setDragStart({ 
-        x: e.clientX - annotation.x, 
-        y: e.clientY - annotation.y 
+      setDragStart({
+        x: e.clientX - annotation.x,
+        y: e.clientY - annotation.y
       });
     }
   };
@@ -99,10 +108,10 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
     } else if (isResizing) {
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
-      
+
       let newPosition = { ...tempPosition };
       let newSize = { ...tempSize };
-      
+
       switch (isResizing) {
         case 'se':
           newSize = {
@@ -135,7 +144,7 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
           };
           break;
       }
-      
+
       setTempPosition(newPosition);
       setTempSize(newSize);
       setDragStart({ x: e.clientX, y: e.clientY });
@@ -149,8 +158,8 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
       setIsDragging(false);
     } else if (isResizing) {
       // Only update history on mouse release
-      onUpdate({ 
-        x: tempPosition.x, 
+      onUpdate({
+        x: tempPosition.x,
         y: tempPosition.y,
         width: tempSize.width,
         height: tempSize.height
@@ -163,7 +172,7 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
     if (isDragging || isResizing) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
-      
+
       return () => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
@@ -187,28 +196,28 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
       wordWrap: 'break-word' as const,
       textAlign: annotation.textAlign, // Move textAlign to baseStyles
     };
-  
+
     switch (annotation.verticalAlign) {
       case 'top':
-        return { 
-          ...baseStyles, 
-          display: 'flex', 
+        return {
+          ...baseStyles,
+          display: 'flex',
           flexDirection: 'column' as const,
-          justifyContent: 'flex-start' 
+          justifyContent: 'flex-start'
         };
       case 'middle':
-        return { 
-          ...baseStyles, 
-          display: 'flex', 
+        return {
+          ...baseStyles,
+          display: 'flex',
           flexDirection: 'column' as const,
-          justifyContent: 'center' 
+          justifyContent: 'center'
         };
       case 'bottom':
-        return { 
-          ...baseStyles, 
-          display: 'flex', 
+        return {
+          ...baseStyles,
+          display: 'flex',
           flexDirection: 'column' as const,
-          justifyContent: 'flex-end' 
+          justifyContent: 'flex-end'
         };
       default:
         return baseStyles;
@@ -221,16 +230,19 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
   const displayWidth = isDragging || isResizing ? tempSize.width : annotation.width;
   const displayHeight = isDragging || isResizing ? tempSize.height : annotation.height;
 
+  // Calculate scaled font size for display
+  const displayFontSize = validatedFontSize * scale;
+
   return (
     <div
       ref={annotationRef}
       className={`absolute border-2 ${
-        isDragging || isResizing 
-          ? '' 
+        isDragging || isResizing
+          ? ''
           : 'transition-all duration-200'
       } ${
-        isSelected 
-          ? 'border-blue-500 shadow-lg' 
+        isSelected
+          ? 'border-blue-500 shadow-lg'
           : 'border-transparent hover:border-blue-300'
       }`}
       style={{
@@ -254,7 +266,7 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
           onKeyDown={handleTextKeyDown}
           className="w-full h-full p-2 border-none outline-none resize-none bg-transparent"
           style={{
-            fontSize: annotation.fontSize,
+            fontSize: displayFontSize, // Use scaled font size for display
             fontFamily: annotation.fontFamily,
             color: annotation.color,
             textAlign: annotation.textAlign
@@ -265,7 +277,7 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
           className="w-full h-full p-2 overflow-hidden"
           style={{
             ...getDisplayStyles(),
-            fontSize: annotation.fontSize,
+            fontSize: displayFontSize, // Use scaled font size for display
           }}
         >
           {annotation.text}
@@ -288,20 +300,20 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
           </div>
 
           {/* Resize handles */}
-          <div 
+          <div
             className="resize-handle absolute -bottom-2 -right-2 w-4 h-4 bg-blue-500 rounded-full cursor-se-resize"
             data-direction="se"
           />
-          <div 
+          <div
             className="resize-handle absolute -bottom-2 -left-2 w-4 h-4 bg-blue-500 rounded-full cursor-sw-resize"
             data-direction="sw"
           />
-          <div 
+          <div
             className="resize-handle absolute -top-2 -right-2 w-4 h-4 bg-blue-500 rounded-full cursor-ne-resize"
             data-direction="ne"
             style={{ marginRight: '24px' }}
           />
-          <div 
+          <div
             className="resize-handle absolute -top-2 -left-2 w-4 h-4 bg-blue-500 rounded-full cursor-nw-resize"
             data-direction="nw"
             style={{ marginLeft: '24px' }}

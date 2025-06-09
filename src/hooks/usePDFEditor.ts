@@ -7,6 +7,8 @@ import { Annotation, PDFState } from '../types';
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
+const ALLOWED_FONT_SIZES = [6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32];
+
 export const usePDFEditor = () => {
   const [pdfState, setPDFState] = useState<PDFState>({
     document: null,
@@ -230,9 +232,14 @@ export const usePDFEditor = () => {
           
           // Draw text if it exists
           if (annotation.text.trim()) {
+            // Validate font size for PDF saving
+            const validatedFontSize = ALLOWED_FONT_SIZES.includes(annotation.fontSize)
+              ? annotation.fontSize
+              : ALLOWED_FONT_SIZES.find(size => size === 14) || ALLOWED_FONT_SIZES[0];
+
             // Split text into lines and draw each line
             const lines = annotation.text.split('\n');
-            const lineHeight = annotation.fontSize * 1.2;
+            const lineHeight = validatedFontSize * 1.2; // Use validated font size
             const totalTextHeight = lines.length * lineHeight;
             const boxHeight = annotation.height / pdfState.scale;
             
@@ -264,7 +271,7 @@ export const usePDFEditor = () => {
                 page.drawText(line, {
                   x: textX,
                   y: pdfY + verticalOffset - (index * lineHeight),
-                  size: annotation.fontSize,
+                  size: validatedFontSize, // Use validated font size
                   color: hexToRgb(annotation.color),
                 });
               }
