@@ -95,6 +95,16 @@ export const usePDFEditor = () => {
     updateHistory(newAnnotations);
   }, [pdfState.annotations, updateHistory]);
 
+  // Add a method for temporary updates that don't affect history
+  const updateAnnotationTemporary = useCallback((id: string, updates: Partial<Annotation>) => {
+    setPDFState(prev => ({
+      ...prev,
+      annotations: prev.annotations.map(ann =>
+        ann.id === id ? { ...ann, ...updates } : ann
+      )
+    }));
+  }, []);
+
   const deleteAnnotation = useCallback((id: string) => {
     const newAnnotations = pdfState.annotations.filter(ann => ann.id !== id);
     updateHistory(newAnnotations);
@@ -292,6 +302,7 @@ export const usePDFEditor = () => {
     loadPDF,
     addAnnotation,
     updateAnnotation,
+    updateAnnotationTemporary,
     deleteAnnotation,
     copyAnnotation,
     selectAnnotation,

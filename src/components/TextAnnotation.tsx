@@ -23,8 +23,20 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [tempText, setTempText] = useState(annotation.text);
   
+  // Temporary position/size state during drag/resize
+  const [tempPosition, setTempPosition] = useState({ x: annotation.x, y: annotation.y });
+  const [tempSize, setTempSize] = useState({ width: annotation.width, height: annotation.height });
+  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const annotationRef = useRef<HTMLDivElement>(null);
+
+  // Update temp states when annotation changes (from external updates)
+  useEffect(() => {
+    if (!isDragging && !isResizing) {
+      setTempPosition({ x: annotation.x, y: annotation.y });
+      setTempSize({ width: annotation.width, height: annotation.height });
+    }
+  }, [annotation.x, annotation.y, annotation.width, annotation.height, isDragging, isResizing]);
 
   useEffect(() => {
     setTempText(annotation.text);
@@ -83,52 +95,68 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
     if (isDragging) {
       const newX = e.clientX - dragStart.x;
       const newY = e.clientY - dragStart.y;
-      onUpdate({ x: Math.max(0, newX), y: Math.max(0, newY) });
+      setTempPosition({ x: Math.max(0, newX), y: Math.max(0, newY) });
     } else if (isResizing) {
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
       
-      let updates: Partial<Annotation> = {};
+      let newPosition = { ...tempPosition };
+      let newSize = { ...tempSize };
       
       switch (isResizing) {
         case 'se':
-          updates = {
-            width: Math.max(1, annotation.width + deltaX),
-            height: Math.max(1, annotation.height + deltaY)
+          newSize = {
+            width: Math.max(50, tempSize.width + deltaX),
+            height: Math.max(20, tempSize.height + deltaY)
           };
           break;
         case 'sw':
-          updates = {
-            x: annotation.x + deltaX,
-            width: Math.max(1, annotation.width - deltaX),
-            height: Math.max(1, annotation.height + deltaY)
+          newPosition.x = tempPosition.x + deltaX;
+          newSize = {
+            width: Math.max(50, tempSize.width - deltaX),
+            height: Math.max(20, tempSize.height + deltaY)
           };
           break;
         case 'ne':
-          updates = {
-            y: annotation.y + deltaY,
-            width: Math.max(1, annotation.width + deltaX),
-            height: Math.max(1, annotation.height - deltaY)
+          newPosition.y = tempPosition.y + deltaY;
+          newSize = {
+            width: Math.max(50, tempSize.width + deltaX),
+            height: Math.max(20, tempSize.height - deltaY)
           };
           break;
         case 'nw':
-          updates = {
-            x: annotation.x + deltaX,
-            y: annotation.y + deltaY,
-            width: Math.max(1, annotation.width - deltaX),
-            height: Math.max(1, annotation.height - deltaY)
+          newPosition = {
+            x: tempPosition.x + deltaX,
+            y: tempPosition.y + deltaY
+          };
+          newSize = {
+            width: Math.max(50, tempSize.width - deltaX),
+            height: Math.max(20, tempSize.height - deltaY)
           };
           break;
       }
       
-      onUpdate(updates);
+      setTempPosition(newPosition);
+      setTempSize(newSize);
       setDragStart({ x: e.clientX, y: e.clientY });
     }
   };
 
   const handleMouseUp = () => {
-    setIsDragging(false);
-    setIsResizing(null);
+    if (isDragging) {
+      // Only update history on mouse release
+      onUpdate({ x: tempPosition.x, y: tempPosition.y });
+      setIsDragging(false);
+    } else if (isResizing) {
+      // Only update history on mouse release
+      onUpdate({ 
+        x: tempPosition.x, 
+        y: tempPosition.y,
+        width: tempSize.width,
+        height: tempSize.height
+      });
+      setIsResizing(null);
+    }
   };
 
   useEffect(() => {
@@ -141,7 +169,7 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
         document.removeEventListener('mouseup', handleMouseUp);
       };
     }
-  }, [isDragging, isResizing, dragStart, annotation]);
+  }, [isDragging, isResizing, dragStart, annotation, tempPosition, tempSize]);
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -170,19 +198,30 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
         return baseStyles;
     }
   };
+
+  // Use temp position/size for display during drag/resize
+  const displayX = isDragging || isResizing ? tempPosition.x : annotation.x;
+  const displayY = isDragging || isResizing ? tempPosition.y : annotation.y;
+  const displayWidth = isDragging || isResizing ? tempSize.width : annotation.width;
+  const displayHeight = isDragging || isResizing ? tempSize.height : annotation.height;
+
   return (
     <div
       ref={annotationRef}
-      className={`absolute border-2 transition-all duration-200 ${
+      className={`absolute border-2 ${
+        isDragging || isResizing 
+          ? '' 
+          : 'transition-all duration-200'
+      } ${
         isSelected 
           ? 'border-blue-500 shadow-lg' 
           : 'border-transparent hover:border-blue-300'
       }`}
       style={{
-        left: `${annotation.x}px`,
-        top: `${annotation.y}px`,
-        width: `${annotation.width}px`,
-        height: `${annotation.height}px`,
+        left: `${displayX}px`,
+        top: `${displayY}px`,
+        width: `${displayWidth}px`,
+        height: `${displayHeight}px`,
         backgroundColor: annotation.backgroundColor,
         cursor: isDragging ? 'grabbing' : 'grab'
       }}
@@ -200,7 +239,7 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
           className="w-full h-full p-2 border-none outline-none resize-none bg-transparent"
           style={{
             fontSize: annotation.fontSize,
- fontFamily: annotation.fontFamily,
+            fontFamily: annotation.fontFamily,
             color: annotation.color,
             textAlign: annotation.textAlign
           }}
