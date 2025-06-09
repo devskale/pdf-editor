@@ -108,6 +108,28 @@ export const usePDFEditor = () => {
     setPDFState(prev => ({ ...prev, selectedAnnotation: id }));
   }, []);
 
+  const copyAnnotation = useCallback(() => {
+    if (!pdfState.selectedAnnotation) return;
+
+    const selected = pdfState.annotations.find(
+      (ann) => ann.id === pdfState.selectedAnnotation
+    );
+
+    if (selected) {
+      const newAnnotation: Annotation = {
+        ...selected,
+        id: Date.now().toString(), // Generate a new unique ID
+        // Optionally offset the copy slightly so it's visible
+        x: selected.x + 10,
+        y: selected.y + 10,
+      };
+
+      const newAnnotations = [...pdfState.annotations, newAnnotation];
+      updateHistory(newAnnotations);
+      selectAnnotation(newAnnotation.id); // Select the newly created copy
+    }
+  }, [pdfState.annotations, pdfState.selectedAnnotation, updateHistory, selectAnnotation]);
+
   const setCurrentPage = useCallback((page: number) => {
     setPDFState(prev => ({ ...prev, currentPage: page }));
   }, []);
@@ -271,6 +293,7 @@ export const usePDFEditor = () => {
     addAnnotation,
     updateAnnotation,
     deleteAnnotation,
+    copyAnnotation,
     selectAnnotation,
     setCurrentPage,
     setScale,

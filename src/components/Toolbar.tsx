@@ -7,7 +7,8 @@ import {
   ZoomOut, 
   Type,
   ChevronLeft,
-  ChevronRight,
+  ChevronRight, 
+  Copy,
   FileText
 } from 'lucide-react';
 
@@ -23,6 +24,8 @@ interface ToolbarProps {
   onRedo: () => void;
   onSave: () => void;
   onAddTextbox: () => void;
+  selectedAnnotationId: string | null;
+  onCopyAnnotation: () => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -36,7 +39,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onUndo,
   onRedo,
   onSave,
-  onAddTextbox
+  onAddTextbox,
+  selectedAnnotationId, 
+  onCopyAnnotation
 }) => {
   return (
     <div className="bg-white border-b border-slate-200 px-6 py-4">
@@ -78,6 +83,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <Type className="w-4 h-4" />
             <span className="text-sm font-medium">Add Text</span>
           </button>
+
+          {selectedAnnotationId && (
+            <button
+              onClick={onCopyAnnotation}
+              className="flex items-center space-x-2 px-3 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition-colors"
+              title="Copy Selected Textbox"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         <div className="flex items-center space-x-4">

@@ -154,11 +154,10 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
       fontSize: annotation.fontSize,
       fontFamily: annotation.fontFamily,
       color: annotation.color,
-      textAlign: annotation.textAlign,
       whiteSpace: 'pre-wrap' as const,
       wordWrap: 'break-word' as const
     };
-
+  
     switch (annotation.verticalAlign) {
       case 'top':
         return { ...baseStyles, display: 'flex', alignItems: 'flex-start' };
@@ -170,7 +169,6 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
         return baseStyles;
     }
   };
-
   return (
     <div
       ref={annotationRef}
@@ -209,7 +207,10 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
       ) : (
         <div
           className="w-full h-full p-2 overflow-hidden"
-          style={getDisplayStyles()}
+          style={{
+            ...getDisplayStyles(),
+            textAlign: annotation.textAlign // Apply horizontal alignment here
+          }}
         >
           {annotation.text}
         </div>

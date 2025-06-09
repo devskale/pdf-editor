@@ -20,7 +20,8 @@ function App() {
     setCurrentPage,
     setScale,
     undo,
-    redo,
+    redo,    
+ copyAnnotation,
     savePDF
   } = usePDFEditor();
 
@@ -79,6 +80,8 @@ function App() {
         onRedo={redo}
         onSave={savePDF}
         onAddTextbox={handleAddTextbox}
+        selectedAnnotationId={pdfState.selectedAnnotation}
+        onCopyAnnotation={copyAnnotation}
       />
       
       <div className="flex flex-1 overflow-hidden">
