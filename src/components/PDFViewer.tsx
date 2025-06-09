@@ -28,6 +28,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<any>(null);
+  const isRenderingRef = useRef(false);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const prevScaleRef = useRef(scale);
 
@@ -40,6 +41,11 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         renderTaskRef.current.cancel();
         renderTaskRef.current = null;
       }
+
+      if (isRenderingRef.current) {
+        return; // Prevent multiple render calls
+      }
+      isRenderingRef.current = true;
 
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
@@ -77,14 +83,17 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
       };
 
       try {
+        // Start rendering the page on the canvas
         renderTaskRef.current = page.render(renderContext);
         await renderTaskRef.current.promise;
-        renderTaskRef.current = null;
       } catch (error) {
-        // Ignore cancellation errors
+        // Ignore cancellation errors and re-throw others
         if (error.name !== 'RenderingCancelledException') {
-          console.error('Error rendering PDF page:', error);
+          throw error;
         }
+      } finally {
+        renderTaskRef.current = null;
+        isRenderingRef.current = false;
       }
     };
 
