@@ -82,6 +82,7 @@ function App() {
         onAddTextbox={handleAddTextbox}
         selectedAnnotationId={pdfState.selectedAnnotation}
         onCopyAnnotation={copyAnnotation}
+        onFileUpload={handleFileUpload}
       />
       
       <div className="flex flex-1 overflow-hidden">

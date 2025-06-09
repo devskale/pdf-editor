@@ -27,7 +27,7 @@ interface ToolbarProps {
   onAddTextbox: () => void;
   selectedAnnotationId: string | null;
   onCopyAnnotation: () => void;
-  onFileUpload: (file: File) => void;
+  onFileUpload?: (file: File) => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -49,7 +49,12 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && file.type === 'application/pdf') {
-      onFileUpload(file);
+      if (typeof onFileUpload === 'function') {
+        onFileUpload(file);
+      } else {
+        // This warning is already in place and correctly identifies the issue's root cause.
+        console.warn("Toolbar: onFileUpload prop was not provided. File upload from toolbar will not function.");
+      }
     }
   };
 
@@ -77,8 +82,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           
           <div className="relative group">
             <button
-              className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg transition-colors group-hover:bg-blue-700"
-              title="Upload new PDF"
+              className={`flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg transition-colors ${
+                !onFileUpload ? 'opacity-50 cursor-not-allowed' : 'group-hover:bg-blue-700'
+              }`}
+              title={onFileUpload ? "Upload new PDF" : "File upload not available"}
+              disabled={!onFileUpload}
             >
               <Upload className="w-4 h-4" />
             </button>
@@ -87,6 +95,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               accept=".pdf"
               onChange={handleFileInput}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              disabled={!onFileUpload}
             />
           </div>
           
