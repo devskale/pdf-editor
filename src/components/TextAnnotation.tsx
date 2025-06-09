@@ -61,6 +61,8 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
     }
   };
 
+  console.log('TextAnnotation rendered, fontSize:', annotation.fontSize);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
     
@@ -151,7 +153,6 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
   // Calculate display styles for vertical alignment
   const getDisplayStyles = () => {
     const baseStyles = {
-      fontSize: annotation.fontSize,
       fontFamily: annotation.fontFamily,
       color: annotation.color,
       whiteSpace: 'pre-wrap' as const,
@@ -178,10 +179,10 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
           : 'border-transparent hover:border-blue-300'
       }`}
       style={{
-        left: annotation.x,
-        top: annotation.y,
-        width: annotation.width,
-        height: annotation.height,
+        left: `${annotation.x}px`,
+        top: `${annotation.y}px`,
+        width: `${annotation.width}px`,
+        height: `${annotation.height}px`,
         backgroundColor: annotation.backgroundColor,
         cursor: isDragging ? 'grabbing' : 'grab'
       }}
@@ -199,7 +200,7 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
           className="w-full h-full p-2 border-none outline-none resize-none bg-transparent"
           style={{
             fontSize: annotation.fontSize,
-            fontFamily: annotation.fontFamily,
+ fontFamily: annotation.fontFamily,
             color: annotation.color,
             textAlign: annotation.textAlign
           }}
@@ -209,6 +210,7 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
           className="w-full h-full p-2 overflow-hidden"
           style={{
             ...getDisplayStyles(),
+            fontSize: annotation.fontSize,
             textAlign: annotation.textAlign // Apply horizontal alignment here
           }}
         >

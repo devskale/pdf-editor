@@ -29,6 +29,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<any>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const prevScaleRef = useRef(scale);
 
   useEffect(() => {
     const renderPage = async () => {
@@ -52,6 +53,23 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
       context.clearRect(0, 0, canvas.width, canvas.height);
       
       setCanvasSize({ width: viewport.width, height: viewport.height });
+
+      // Scale existing annotations if the scale has changed
+      if (prevScaleRef.current !== scale) {
+        const scaleFactor = scale / prevScaleRef.current;
+        annotations
+          .filter(ann => ann.page === currentPage)
+          .forEach(annotation => {
+            onAnnotationUpdate(annotation.id, {
+              x: annotation.x * scaleFactor,
+              y: annotation.y * scaleFactor,
+              width: annotation.width * scaleFactor,
+              height: annotation.height * scaleFactor,
+              fontSize: annotation.fontSize * scaleFactor,
+            });
+          });
+      }
+      prevScaleRef.current = scale;
 
       const renderContext = {
         canvasContext: context,
