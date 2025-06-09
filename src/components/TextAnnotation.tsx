@@ -184,16 +184,32 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
       fontFamily: annotation.fontFamily,
       color: annotation.color,
       whiteSpace: 'pre-wrap' as const,
-      wordWrap: 'break-word' as const
+      wordWrap: 'break-word' as const,
+      textAlign: annotation.textAlign, // Move textAlign to baseStyles
     };
   
     switch (annotation.verticalAlign) {
       case 'top':
-        return { ...baseStyles, display: 'flex', alignItems: 'flex-start' };
+        return { 
+          ...baseStyles, 
+          display: 'flex', 
+          flexDirection: 'column' as const,
+          justifyContent: 'flex-start' 
+        };
       case 'middle':
-        return { ...baseStyles, display: 'flex', alignItems: 'center' };
+        return { 
+          ...baseStyles, 
+          display: 'flex', 
+          flexDirection: 'column' as const,
+          justifyContent: 'center' 
+        };
       case 'bottom':
-        return { ...baseStyles, display: 'flex', alignItems: 'flex-end' };
+        return { 
+          ...baseStyles, 
+          display: 'flex', 
+          flexDirection: 'column' as const,
+          justifyContent: 'flex-end' 
+        };
       default:
         return baseStyles;
     }
@@ -250,7 +266,6 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
           style={{
             ...getDisplayStyles(),
             fontSize: annotation.fontSize,
-            textAlign: annotation.textAlign // Apply horizontal alignment here
           }}
         >
           {annotation.text}
