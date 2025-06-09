@@ -58,10 +58,20 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <div className="flex items-center justify-between">
         {/* first group: logo, upload, add text, copy, undo/redo */}
         <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <FileText className="w-5 h-5 text-blue-600" />
-            <span className="font-semibold text-slate-800">PDF Editor</span>
-          </div>
+            <div className="flex flex-col">
+            <div className="flex items-center space-x-2">
+              <FileText className="w-5 h-5 text-blue-600" />
+              <span className="font-semibold text-slate-800">PDF Editor</span>
+            </div>
+            <a
+              href="https://skale.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] text-slate-400 ml-7 -mt-1 hover:underline"
+            >
+              by skale.dev
+            </a>
+            </div>
           
           <div className="h-6 w-px bg-slate-300" />
           
