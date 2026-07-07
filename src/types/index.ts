@@ -24,7 +24,6 @@ export interface PDFState {
   selectedAnnotation: string | null;
   history: {
     past: Annotation[][];
-    present: Annotation[];
     future: Annotation[][];
   };
 }

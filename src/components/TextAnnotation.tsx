@@ -82,8 +82,6 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
     }
   };
 
-  console.log('TextAnnotation rendered, input fontSize:', annotation.fontSize, 'validated fontSize:', validatedFontSize, 'scale:', scale);
-
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
     
@@ -312,7 +310,7 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
 
       {isSelected && !isEditing && (
         <>
-          {/* Delete button */}
+          {/* Delete button — top-right corner */}
           <button
             className="delete-button absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
             onClick={handleDelete}
@@ -320,29 +318,32 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
             <X className="w-3 h-3" />
           </button>
 
-          {/* Move handle */}
+          {/* Move handle — top-left corner */}
           <div className="absolute -top-2 -left-2 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center cursor-move">
             <Move className="w-3 h-3" />
           </div>
 
-          {/* Resize handles */}
+          {/* Resize handles. The top two sit along the top edge, inset from the
+              corners so they don't collide with the delete/move handles above. */}
           <div
-            className="resize-handle absolute -bottom-2 -right-2 w-4 h-4 bg-blue-500 rounded-full cursor-se-resize"
+            className="resize-handle absolute w-4 h-4 bg-blue-500 rounded-full cursor-se-resize"
             data-direction="se"
+            style={{ bottom: '-8px', right: '-8px' }}
           />
           <div
-            className="resize-handle absolute -bottom-2 -left-2 w-4 h-4 bg-blue-500 rounded-full cursor-sw-resize"
+            className="resize-handle absolute w-4 h-4 bg-blue-500 rounded-full cursor-sw-resize"
             data-direction="sw"
+            style={{ bottom: '-8px', left: '-8px' }}
           />
           <div
-            className="resize-handle absolute -top-2 -right-2 w-4 h-4 bg-blue-500 rounded-full cursor-ne-resize"
+            className="resize-handle absolute w-4 h-4 bg-blue-500 rounded-full cursor-ne-resize"
             data-direction="ne"
-            style={{ marginRight: '24px' }}
+            style={{ top: '-8px', right: '24px' }}
           />
           <div
-            className="resize-handle absolute -top-2 -left-2 w-4 h-4 bg-blue-500 rounded-full cursor-nw-resize"
+            className="resize-handle absolute w-4 h-4 bg-blue-500 rounded-full cursor-nw-resize"
             data-direction="nw"
-            style={{ marginLeft: '24px' }}
+            style={{ top: '-8px', left: '24px' }}
           />
         </>
       )}

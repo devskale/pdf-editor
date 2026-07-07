@@ -1,13 +1,43 @@
 import { useState, useCallback, useRef } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts, PDFFont, rgb } from 'pdf-lib';
 import { Annotation, PDFState } from '../types';
+// Bundle the PDF.js worker locally (no CDN) for v6 compatibility.
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 const ALLOWED_FONT_SIZES = [6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32];
+
+// Mapping from the UI font names to pdf-lib StandardFonts. Arial and Georgia are
+// not PDF base-14 fonts, so they fall back to the closest standard equivalent.
+const FONT_MAP: Record<string, StandardFonts> = {
+  Helvetica: StandardFonts.Helvetica,
+  Arial: StandardFonts.Helvetica,
+  'Times New Roman': StandardFonts.TimesRoman,
+  'Courier New': StandardFonts.Courier,
+  Georgia: StandardFonts.TimesRoman,
+};
+
+// Visual padding (PDF points) mirroring the `p-2` padding used on screen so the
+// saved layout matches what the user sees.
+const PAD = 8;
+// Typical ascent/descent ratio for the standard fonts (good enough for layout).
+const ASCENT = 0.8;
+const DESCENT = 0.2;
+
+const genId = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+const hexToRgb = (hex: string) => {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  return rgb(r, g, b);
+};
 
 export const usePDFEditor = () => {
   const [pdfState, setPDFState] = useState<PDFState>({
@@ -19,7 +49,6 @@ export const usePDFEditor = () => {
     selectedAnnotation: null,
     history: {
       past: [],
-      present: [],
       future: []
     }
   });
@@ -27,13 +56,34 @@ export const usePDFEditor = () => {
   const fileRef = useRef<ArrayBuffer | null>(null);
   const originalFileNameRef = useRef<string>('document.pdf');
 
-  const updateHistory = useCallback((newAnnotations: Annotation[]) => {
+  // --- History bookkeeping -------------------------------------------------
+  // `updateAnnotation` debounces history commits so that rapid edits (typing in
+  // the property panel, dragging) collapse into a single undoable entry. The
+  // pre-edit snapshot is captured at the start of an edit burst so undo restores
+  // the value from before the burst.
+  const preEditSnapshotRef = useRef<Annotation[] | null>(null);
+  const historyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushHistory = useCallback(() => {
+    if (historyTimerRef.current === null) return;
+    clearTimeout(historyTimerRef.current);
+    historyTimerRef.current = null;
+    const snapshot = preEditSnapshotRef.current;
+    preEditSnapshotRef.current = null;
+    if (!snapshot) return;
+    setPDFState(prev => ({
+      ...prev,
+      history: { past: [...prev.history.past, snapshot], future: [] },
+    }));
+  }, []);
+
+  // Immediate (non-debounced) commit, used by add/delete/copy.
+  const commitHistory = useCallback((newAnnotations: Annotation[]) => {
     setPDFState(prev => ({
       ...prev,
       annotations: newAnnotations,
       history: {
         past: [...prev.history.past, prev.annotations],
-        present: newAnnotations,
         future: []
       }
     }));
@@ -45,10 +95,10 @@ export const usePDFEditor = () => {
       // Store a copy of the ArrayBuffer to prevent detachment issues
       fileRef.current = arrayBuffer.slice(0);
       originalFileNameRef.current = file.name;
-      
+
       const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
       const pdf = await loadingTask.promise;
-      
+
       setPDFState(prev => ({
         ...prev,
         document: pdf,
@@ -58,7 +108,6 @@ export const usePDFEditor = () => {
         selectedAnnotation: null,
         history: {
           past: [],
-          present: [],
           future: []
         }
       }));
@@ -69,8 +118,9 @@ export const usePDFEditor = () => {
   }, []);
 
   const addAnnotation = useCallback((x: number, y: number) => {
+    flushHistory();
     const newAnnotation: Annotation = {
-      id: Date.now().toString(),
+      id: genId(),
       type: 'textbox',
       x,
       y,
@@ -86,35 +136,57 @@ export const usePDFEditor = () => {
       page: pdfState.currentPage
     };
 
-    const newAnnotations = [...pdfState.annotations, newAnnotation];
-    updateHistory(newAnnotations);
-  }, [pdfState.annotations, pdfState.currentPage, updateHistory]);
+    commitHistory([...pdfState.annotations, newAnnotation]);
+  }, [pdfState.annotations, pdfState.currentPage, flushHistory, commitHistory]);
 
   const updateAnnotation = useCallback((id: string, updates: Partial<Annotation>) => {
-    const newAnnotations = pdfState.annotations.map(ann =>
-      ann.id === id ? { ...ann, ...updates } : ann
-    );
-    updateHistory(newAnnotations);
-  }, [pdfState.annotations, updateHistory]);
-
-  // Add a method for temporary updates that don't affect history
-  const updateAnnotationTemporary = useCallback((id: string, updates: Partial<Annotation>) => {
+    // Live update (immediate, so the canvas/inputs reflect changes instantly).
     setPDFState(prev => ({
       ...prev,
       annotations: prev.annotations.map(ann =>
         ann.id === id ? { ...ann, ...updates } : ann
       )
     }));
-  }, []);
+
+    // Capture the pre-edit snapshot once per burst (uses the value from before
+    // this edit because the functional update above has not flushed yet).
+    if (preEditSnapshotRef.current === null) {
+      preEditSnapshotRef.current = pdfState.annotations;
+    }
+
+    // Debounce the history commit so a burst of edits = one undo entry.
+    if (historyTimerRef.current) clearTimeout(historyTimerRef.current);
+    historyTimerRef.current = setTimeout(() => {
+      historyTimerRef.current = null;
+      const snapshot = preEditSnapshotRef.current;
+      preEditSnapshotRef.current = null;
+      if (!snapshot) return;
+      setPDFState(prev => ({
+        ...prev,
+        history: { past: [...prev.history.past, snapshot], future: [] },
+      }));
+    }, 400);
+  }, [pdfState.annotations]);
 
   const deleteAnnotation = useCallback((id: string) => {
-    const newAnnotations = pdfState.annotations.filter(ann => ann.id !== id);
-    updateHistory(newAnnotations);
-    
-    if (pdfState.selectedAnnotation === id) {
-      setPDFState(prev => ({ ...prev, selectedAnnotation: null }));
-    }
-  }, [pdfState.annotations, pdfState.selectedAnnotation, updateHistory]);
+    flushHistory();
+    // Single state update: remove the annotation, clear selection if needed,
+    // and record history in one pass.
+    setPDFState(prev => {
+      const newAnnotations = prev.annotations.filter(ann => ann.id !== id);
+      const selected =
+        prev.selectedAnnotation === id ? null : prev.selectedAnnotation;
+      return {
+        ...prev,
+        annotations: newAnnotations,
+        selectedAnnotation: selected,
+        history: {
+          past: [...prev.history.past, prev.annotations],
+          future: []
+        }
+      };
+    });
+  }, [flushHistory]);
 
   const selectAnnotation = useCallback((id: string | null) => {
     setPDFState(prev => ({ ...prev, selectedAnnotation: id }));
@@ -126,21 +198,19 @@ export const usePDFEditor = () => {
     const selected = pdfState.annotations.find(
       (ann) => ann.id === pdfState.selectedAnnotation
     );
+    if (!selected) return;
 
-    if (selected) {
-      const newAnnotation: Annotation = {
-        ...selected,
-        id: Date.now().toString(), // Generate a new unique ID
-        // Optionally offset the copy slightly so it's visible
-        x: selected.x + 10,
-        y: selected.y + 10,
-      };
+    flushHistory();
+    const newAnnotation: Annotation = {
+      ...selected,
+      id: genId(),
+      x: selected.x + 10,
+      y: selected.y + 10,
+    };
 
-      const newAnnotations = [...pdfState.annotations, newAnnotation];
-      updateHistory(newAnnotations);
-      selectAnnotation(newAnnotation.id); // Select the newly created copy
-    }
-  }, [pdfState.annotations, pdfState.selectedAnnotation, updateHistory, selectAnnotation]);
+    commitHistory([...pdfState.annotations, newAnnotation]);
+    selectAnnotation(newAnnotation.id);
+  }, [pdfState.annotations, pdfState.selectedAnnotation, flushHistory, commitHistory, selectAnnotation]);
 
   const setCurrentPage = useCallback((page: number) => {
     setPDFState(prev => ({ ...prev, currentPage: page }));
@@ -151,42 +221,40 @@ export const usePDFEditor = () => {
   }, []);
 
   const undo = useCallback(() => {
+    flushHistory();
     setPDFState(prev => {
       if (prev.history.past.length === 0) return prev;
-      
+
       const previous = prev.history.past[prev.history.past.length - 1];
-      const newPast = prev.history.past.slice(0, prev.history.past.length - 1);
-      
+
       return {
         ...prev,
         annotations: previous,
         history: {
-          past: newPast,
-          present: previous,
+          past: prev.history.past.slice(0, prev.history.past.length - 1),
           future: [prev.annotations, ...prev.history.future]
         }
       };
     });
-  }, []);
+  }, [flushHistory]);
 
   const redo = useCallback(() => {
+    flushHistory();
     setPDFState(prev => {
       if (prev.history.future.length === 0) return prev;
-      
+
       const next = prev.history.future[0];
-      const newFuture = prev.history.future.slice(1);
-      
+
       return {
         ...prev,
         annotations: next,
         history: {
           past: [...prev.history.past, prev.annotations],
-          present: next,
-          future: newFuture
+          future: prev.history.future.slice(1)
         }
       };
     });
-  }, []);
+  }, [flushHistory]);
 
   const savePDF = useCallback(async () => {
     if (!fileRef.current) {
@@ -199,105 +267,110 @@ export const usePDFEditor = () => {
       const pdfDoc = await PDFDocument.load(freshArrayBuffer, { ignoreEncryption: true });
       const pages = pdfDoc.getPages();
 
-      const hexToRgb = (hex: string) => {
-        const r = parseInt(hex.slice(1, 3), 16) / 255;
-        const g = parseInt(hex.slice(3, 5), 16) / 255;
-        const b = parseInt(hex.slice(5, 7), 16) / 255;
-        return rgb(r, g, b);
+      // Embed each unique font once.
+      const fontCache: Partial<Record<StandardFonts, PDFFont>> = {};
+      const getFont = async (family: string): Promise<PDFFont> => {
+        const std = FONT_MAP[family] ?? StandardFonts.Helvetica;
+        if (!fontCache[std]) {
+          fontCache[std] = await pdfDoc.embedFont(std);
+        }
+        return fontCache[std]!;
       };
 
       for (const annotation of pdfState.annotations) {
         const page = pages[annotation.page - 1];
-        if (page) {
-          const { width: pageWidth, height: pageHeight } = page.getSize();
-          
-          // Annotation coordinates (x, y) are assumed to be top-left, unscaled (PDF points)
-          // PDF coordinates (pdfX, pdfY) for pdf-lib are bottom-left
-          const pdfX = annotation.x; // Already unscaled
-          const pdfY = pageHeight - annotation.y - annotation.height; // Convert top-left y and height to bottom-left y
-          
-          const unscaledWidth = annotation.width; // Already unscaled
-          const unscaledHeight = annotation.height; // Already unscaled
+        if (!page) continue;
 
-          if (annotation.backgroundColor && annotation.backgroundColor !== 'transparent') {
-            page.drawRectangle({
-              x: pdfX,
-              y: pdfY,
-              width: unscaledWidth,
-              height: unscaledHeight,
-              color: hexToRgb(annotation.backgroundColor),
-            });
-          }
-          
-          if (annotation.text.trim()) {
-            const validatedFontSize = ALLOWED_FONT_SIZES.includes(annotation.fontSize)
-              ? annotation.fontSize
-              : ALLOWED_FONT_SIZES.find(size => size === 14) || ALLOWED_FONT_SIZES[0];
+        const { height: pageHeight } = page.getSize();
 
-            const lines = annotation.text.split('\n');
-            const lineHeight = validatedFontSize * 1.2; 
-            const totalTextHeight = lines.length * lineHeight;
-            const boxHeight = unscaledHeight; // Use unscaled height for text box calculations
-            
-            let verticalOffset = 0;
-            switch (annotation.verticalAlign) {
-              case 'top':
-                // Adjust padding if needed, assuming 20 was a scaled value, now it should be unscaled
-                verticalOffset = boxHeight - (validatedFontSize * 1.2); // Example: offset by one line height from top
-                break;
-              case 'middle':
-                verticalOffset = (boxHeight / 2) + (totalTextHeight / 2) - lineHeight; // This might need fine-tuning
-                break;
-              case 'bottom':
-                 // Adjust padding if needed
-                verticalOffset = totalTextHeight - (validatedFontSize * 0.2); // Example: small padding from bottom
-                break;
-            }
-            
-            lines.forEach((line, index) => {
-              if (line.trim()) {
-                let textX = pdfX + 5; // Small padding from left edge (PDF points)
-                
-                if (annotation.textAlign === 'center') {
-                  // For pdf-lib, text alignment is often handled by adjusting x, not a text property
-                  // This requires knowing the text width, which pdf-lib doesn't directly provide before drawing.
-                  // A common approach is to use a font's advanceWidthOfText method if available, or approximate.
-                  // For simplicity, let's assume text is drawn from its calculated x.
-                  // If your font object (not shown here) can calculate text width:
-                  // const textWidth = font.widthOfTextAtSize(line, validatedFontSize);
-                  // textX = pdfX + (unscaledWidth - textWidth) / 2;
-                  // If not, this might need a more complex solution or accept left-alignment for center/right in PDF.
-                  // For now, we'll keep the previous logic which might not perfectly center/right align in all PDF viewers.
-                  textX = pdfX + unscaledWidth / 2; // This positions the START of the text at the center of the box.
-                                                    // True centering requires knowing text width.
-                } else if (annotation.textAlign === 'right') {
-                  // const textWidth = font.widthOfTextAtSize(line, validatedFontSize);
-                  // textX = pdfX + unscaledWidth - textWidth - 5; // 5 for padding
-                  textX = pdfX + unscaledWidth - 5; // This positions the START of the text near the right of the box.
-                }
-                
-                page.drawText(line, {
-                  x: textX,
-                  y: pdfY + verticalOffset - (index * lineHeight), // pdfY is bottom of box, verticalOffset is from bottom of box
-                  size: validatedFontSize,
-                  color: hexToRgb(annotation.color),
-                  // pdf-lib drawText does not have direct textAlign options like 'center' or 'right'.
-                  // Alignment must be handled by calculating the 'x' coordinate.
-                });
-              }
-            });
-          }
+        // Annotation coords are top-left, unscaled PDF points. Convert to
+        // pdf-lib's bottom-left origin.
+        const pdfX = annotation.x;
+        const pdfY = pageHeight - annotation.y - annotation.height;
+        const boxW = annotation.width;
+        const boxH = annotation.height;
+
+        if (annotation.backgroundColor && annotation.backgroundColor !== 'transparent') {
+          page.drawRectangle({
+            x: pdfX,
+            y: pdfY,
+            width: boxW,
+            height: boxH,
+            color: hexToRgb(annotation.backgroundColor),
+          });
         }
+
+        const text = annotation.text;
+        if (!text.trim()) continue;
+
+        const fontSize = ALLOWED_FONT_SIZES.includes(annotation.fontSize)
+          ? annotation.fontSize
+          : 14;
+        const font = await getFont(annotation.fontFamily);
+        const color = hexToRgb(annotation.color);
+
+        const lineHeight = fontSize * 1.2;
+        const ascent = fontSize * ASCENT;
+        const descent = fontSize * DESCENT;
+
+        const lines = text.split('\n');
+        const n = lines.length;
+        const blockHeight = (n - 1) * lineHeight + ascent + descent;
+
+        const innerTop = pdfY + boxH - PAD;
+        const innerBottom = pdfY + PAD;
+
+        // Baseline of the first (top) line, depending on vertical alignment.
+        let firstBaseline: number;
+        switch (annotation.verticalAlign) {
+          case 'middle':
+            firstBaseline = (innerTop + innerBottom) / 2 + blockHeight / 2 - ascent;
+            break;
+          case 'bottom':
+            firstBaseline = innerBottom + descent + (n - 1) * lineHeight;
+            break;
+          case 'top':
+          default:
+            firstBaseline = innerTop - ascent;
+            break;
+        }
+
+        lines.forEach((line, index) => {
+          const baseline = firstBaseline - index * lineHeight;
+
+          let textX: number;
+          if (line.trim() === '') return;
+          const textWidth = font.widthOfTextAtSize(line, fontSize);
+          switch (annotation.textAlign) {
+            case 'center':
+              textX = pdfX + (boxW - textWidth) / 2;
+              break;
+            case 'right':
+              textX = pdfX + boxW - PAD - textWidth;
+              break;
+            case 'left':
+            default:
+              textX = pdfX + PAD;
+              break;
+          }
+
+          page.drawText(line, {
+            x: textX,
+            y: baseline,
+            size: fontSize,
+            font,
+            color,
+          });
+        });
       }
 
       const pdfBytes = await pdfDoc.save();
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
-      
-      // Generate filename
-      const baseName = originalFileNameRef.current.replace('.pdf', '');
+
+      const baseName = originalFileNameRef.current.replace(/\.pdf$/i, '');
       const fileName = `${baseName}_annotated.pdf`;
-      
+
       const a = document.createElement('a');
       a.href = url;
       a.download = fileName;
@@ -306,20 +379,17 @@ export const usePDFEditor = () => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
-      console.log('PDF saved successfully');
     } catch (error) {
       console.error('Error saving PDF:', error, (error as Error).stack);
       alert('Failed to save PDF. Please try again.');
     }
-  }, [pdfState.annotations, pdfState.scale]); // pdfState.scale is no longer used for geometry, but might be for other things. If not, remove.
+  }, [pdfState.annotations]);
 
   return {
     pdfState,
     loadPDF,
     addAnnotation,
     updateAnnotation,
-    updateAnnotationTemporary,
     deleteAnnotation,
     copyAnnotation,
     selectAnnotation,

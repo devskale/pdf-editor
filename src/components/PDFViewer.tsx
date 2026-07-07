@@ -114,8 +114,10 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    // Convert screen pixels to unscaled PDF points so stored coordinates
+    // stay zoom-independent (consistent with drag/resize and savePDF).
+    const x = (e.clientX - rect.left) / scale;
+    const y = (e.clientY - rect.top) / scale;
 
     onCanvasClick(x, y);
   };
