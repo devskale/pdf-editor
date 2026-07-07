@@ -48,7 +48,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
             <FileText className="w-8 h-8 text-blue-600" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">PDF Annotator</h1>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <h1 className="text-3xl font-bold text-slate-800">PDF Annotator</h1>
+            <span className="text-xs font-medium text-slate-400 border border-slate-200 rounded-full px-2 py-0.5">v{__APP_VERSION__}</span>
+          </div>
           <p className="text-slate-600">Upload a PDF to start adding annotations</p>
         </div>
 
@@ -87,7 +90,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         </div>
 
         <div className="mt-6 text-xs text-slate-500 text-center">
-          Supported format: PDF files only
+          Supported format: PDF files only · v{__APP_VERSION__}
         </div>
       </div>
     </div>
