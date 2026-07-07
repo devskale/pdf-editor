@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
+import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import { Annotation } from '../types';
 import { TextAnnotation } from './TextAnnotation';
 
 interface PDFViewerProps {
-  document: any;
+  document: PDFDocumentProxy;
   currentPage: number;
   scale: number;
   annotations: Annotation[];
@@ -27,10 +28,9 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const renderTaskRef = useRef<any>(null);
+  const renderTaskRef = useRef<RenderTask | null>(null);
   const isRenderingRef = useRef(false);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
-  const prevScaleRef = useRef(scale);
 
   useEffect(() => {
     const renderPage = async () => {
@@ -49,34 +49,23 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
 
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
+      if (!context) {
+        isRenderingRef.current = false;
+        return;
+      }
       const page = await document.getPage(currentPage);
 
       const viewport = page.getViewport({ scale });
       canvas.height = viewport.height;
       canvas.width = viewport.width;
-      
+
       // Clear the canvas context to ensure it's in a clean state
       context.clearRect(0, 0, canvas.width, canvas.height);
-      
+
       setCanvasSize({ width: viewport.width, height: viewport.height });
 
-      // REMOVE THE BLOCK THAT SCALES ANNOTATIONS BASED ON VIEW SCALE CHANGES
-      // The annotation x, y, width, height should be stored unscaled.
-      // Visual scaling is handled by TextAnnotation using the scale prop.
-      // if (prevScaleRef.current !== scale) {
-      //   const scaleFactor = scale / prevScaleRef.current;
-      //   annotations
-      //     .filter(ann => ann.page === currentPage)
-      //     .forEach(annotation => {
-      //       onAnnotationUpdate(annotation.id, {
-      //         x: annotation.x * scaleFactor,
-      //         y: annotation.y * scaleFactor,
-      //         width: annotation.width * scaleFactor,
-      //         height: annotation.height * scaleFactor,
-      //       });
-      //     });
-      // }
-      prevScaleRef.current = scale; // Still useful to track previous scale if needed for other logic
+      // Annotation geometry is stored unscaled (PDF points); visual scaling is
+      // applied by TextAnnotation via the `scale` prop.
 
       const renderContext = {
         canvasContext: context,

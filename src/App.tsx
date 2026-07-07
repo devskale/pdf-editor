@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { usePDFEditor } from './hooks/usePDFEditor';
 import { FileUpload } from './components/FileUpload';
 import { Toolbar } from './components/Toolbar';
@@ -20,10 +20,35 @@ function App() {
     setCurrentPage,
     setScale,
     undo,
-    redo,    
- copyAnnotation,
+    redo,
+    copyAnnotation,
     savePDF
   } = usePDFEditor();
+
+  // Esc cancels "add text" mode.
+  useEffect(() => {
+    if (!isAddingText) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsAddingText(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isAddingText]);
+
+  // Delete/Backspace removes the selected annotation (ignored while typing or
+  // placing a new text box).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      if (isAddingText || !pdfState.selectedAnnotation) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      e.preventDefault();
+      deleteAnnotation(pdfState.selectedAnnotation);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isAddingText, pdfState.selectedAnnotation, deleteAnnotation]);
 
   const handleFileUpload = async (file: File) => {
     try {
@@ -103,14 +128,6 @@ function App() {
           onUpdate={(updates) => selectedAnnotation && updateAnnotation(selectedAnnotation.id, updates)}
         />
       </div>
-
-      {isAddingText && (
-        <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center pointer-events-none">
-          <div className="bg-white px-4 py-2 rounded-lg shadow-lg">
-            <p className="text-sm text-slate-600">Click anywhere on the PDF to add a text box</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

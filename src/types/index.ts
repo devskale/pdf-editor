@@ -1,3 +1,5 @@
+import type { PDFDocumentProxy } from 'pdfjs-dist';
+
 export interface Annotation {
   id: string;
   type: 'textbox';
@@ -16,7 +18,7 @@ export interface Annotation {
 }
 
 export interface PDFState {
-  document: any;
+  document: PDFDocumentProxy | null;
   currentPage: number;
   totalPages: number;
   scale: number;

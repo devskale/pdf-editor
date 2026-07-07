@@ -39,17 +39,30 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const annotationRef = useRef<HTMLDivElement>(null);
 
-  // Update temp states when annotation changes (from external updates)
-  useEffect(() => {
-    if (!isDragging && !isResizing) {
-      setTempPosition({ x: annotation.x, y: annotation.y });
-      setTempSize({ width: annotation.width, height: annotation.height });
-    }
-  }, [annotation.x, annotation.y, annotation.width, annotation.height, isDragging, isResizing]);
+  // Adjust local temp state when the annotation changes externally, using
+  // React's "adjust state during render" pattern (avoids setState-in-effect).
+  // Skip while interacting so an in-flight drag/resize isn't clobbered.
+  const [lastGeo, setLastGeo] = useState({
+    x: annotation.x, y: annotation.y, width: annotation.width, height: annotation.height,
+  });
+  if (
+    !isDragging &&
+    !isResizing &&
+    (annotation.x !== lastGeo.x ||
+      annotation.y !== lastGeo.y ||
+      annotation.width !== lastGeo.width ||
+      annotation.height !== lastGeo.height)
+  ) {
+    setLastGeo({ x: annotation.x, y: annotation.y, width: annotation.width, height: annotation.height });
+    setTempPosition({ x: annotation.x, y: annotation.y });
+    setTempSize({ width: annotation.width, height: annotation.height });
+  }
 
-  useEffect(() => {
+  const [lastText, setLastText] = useState(annotation.text);
+  if (annotation.text !== lastText) {
+    setLastText(annotation.text);
     setTempText(annotation.text);
-  }, [annotation.text]);
+  }
 
   useEffect(() => {
     if (isEditing && textareaRef.current) {
@@ -192,17 +205,24 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
     }
   };
 
+  // Keep the latest drag/resize handlers in a ref so listeners attach once per
+  // interaction instead of re-binding on every pointer move.
+  const handlersRef = useRef({ move: handleMouseMove, up: handleMouseUp });
   useEffect(() => {
-    if (isDragging || isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [isDragging, isResizing, dragStart, scale, tempPosition, tempSize, onUpdate]); // Added scale, tempPosition, tempSize, onUpdate
+    handlersRef.current = { move: handleMouseMove, up: handleMouseUp };
+  });
+
+  useEffect(() => {
+    if (!isDragging && !isResizing) return;
+    const onMove = (e: MouseEvent) => handlersRef.current.move(e);
+    const onUp = (e: MouseEvent) => handlersRef.current.up(e);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+  }, [isDragging, isResizing]);
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -265,8 +285,8 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
           : 'transition-all duration-200'
       } ${
         isSelected
-          ? 'border-blue-500 shadow-lg'
-          : 'border-transparent hover:border-blue-300'
+          ? 'border-blue-500 shadow-md'
+          : 'border-transparent hover:border-blue-400'
       }`}
       style={{
         // Apply scale for display
@@ -312,36 +332,36 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
         <>
           {/* Delete button — top-right corner */}
           <button
-            className="delete-button absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+            className="delete-button absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 shadow-sm ring-2 ring-white transition-colors"
             onClick={handleDelete}
           >
             <X className="w-3 h-3" />
           </button>
 
           {/* Move handle — top-left corner */}
-          <div className="absolute -top-2 -left-2 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center cursor-move">
+          <div className="absolute -top-2 -left-2 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center cursor-move shadow-sm ring-2 ring-white">
             <Move className="w-3 h-3" />
           </div>
 
           {/* Resize handles. The top two sit along the top edge, inset from the
               corners so they don't collide with the delete/move handles above. */}
           <div
-            className="resize-handle absolute w-4 h-4 bg-blue-500 rounded-full cursor-se-resize"
+            className="resize-handle absolute w-4 h-4 bg-white border-2 border-blue-600 shadow-sm rounded-full cursor-se-resize"
             data-direction="se"
             style={{ bottom: '-8px', right: '-8px' }}
           />
           <div
-            className="resize-handle absolute w-4 h-4 bg-blue-500 rounded-full cursor-sw-resize"
+            className="resize-handle absolute w-4 h-4 bg-white border-2 border-blue-600 shadow-sm rounded-full cursor-sw-resize"
             data-direction="sw"
             style={{ bottom: '-8px', left: '-8px' }}
           />
           <div
-            className="resize-handle absolute w-4 h-4 bg-blue-500 rounded-full cursor-ne-resize"
+            className="resize-handle absolute w-4 h-4 bg-white border-2 border-blue-600 shadow-sm rounded-full cursor-ne-resize"
             data-direction="ne"
             style={{ top: '-8px', right: '24px' }}
           />
           <div
-            className="resize-handle absolute w-4 h-4 bg-blue-500 rounded-full cursor-nw-resize"
+            className="resize-handle absolute w-4 h-4 bg-white border-2 border-blue-600 shadow-sm rounded-full cursor-nw-resize"
             data-direction="nw"
             style={{ top: '-8px', left: '24px' }}
           />

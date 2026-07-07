@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { PDFDocument, StandardFonts, PDFFont, rgb } from 'pdf-lib';
+import type { PDFFont, StandardFonts } from 'pdf-lib';
 import { Annotation, PDFState } from '../types';
 // Bundle the PDF.js worker locally (no CDN) for v6 compatibility.
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -9,16 +9,6 @@ import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 const ALLOWED_FONT_SIZES = [6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32];
-
-// Mapping from the UI font names to pdf-lib StandardFonts. Arial and Georgia are
-// not PDF base-14 fonts, so they fall back to the closest standard equivalent.
-const FONT_MAP: Record<string, StandardFonts> = {
-  Helvetica: StandardFonts.Helvetica,
-  Arial: StandardFonts.Helvetica,
-  'Times New Roman': StandardFonts.TimesRoman,
-  'Courier New': StandardFonts.Courier,
-  Georgia: StandardFonts.TimesRoman,
-};
 
 // Visual padding (PDF points) mirroring the `p-2` padding used on screen so the
 // saved layout matches what the user sees.
@@ -32,12 +22,11 @@ const genId = () =>
     ? crypto.randomUUID()
     : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-const hexToRgb = (hex: string) => {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
-  return rgb(r, g, b);
-};
+const hexToRgb = (hex: string) => ({
+  r: parseInt(hex.slice(1, 3), 16) / 255,
+  g: parseInt(hex.slice(3, 5), 16) / 255,
+  b: parseInt(hex.slice(5, 7), 16) / 255,
+});
 
 export const usePDFEditor = () => {
   const [pdfState, setPDFState] = useState<PDFState>({
@@ -263,6 +252,19 @@ export const usePDFEditor = () => {
     }
 
     try {
+      // Lazy-load pdf-lib (only needed when saving) to keep it out of the main bundle.
+      const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+      const FONT_MAP: Record<string, StandardFonts> = {
+        Helvetica: StandardFonts.Helvetica,
+        Arial: StandardFonts.Helvetica,
+        'Times New Roman': StandardFonts.TimesRoman,
+        'Courier New': StandardFonts.Courier,
+        Georgia: StandardFonts.TimesRoman,
+      };
+      const colorOf = (hex: string) => {
+        const c = hexToRgb(hex);
+        return rgb(c.r, c.g, c.b);
+      };
       const freshArrayBuffer = fileRef.current.slice(0);
       const pdfDoc = await PDFDocument.load(freshArrayBuffer, { ignoreEncryption: true });
       const pages = pdfDoc.getPages();
@@ -296,7 +298,7 @@ export const usePDFEditor = () => {
             y: pdfY,
             width: boxW,
             height: boxH,
-            color: hexToRgb(annotation.backgroundColor),
+            color: colorOf(annotation.backgroundColor),
           });
         }
 
@@ -307,7 +309,7 @@ export const usePDFEditor = () => {
           ? annotation.fontSize
           : 14;
         const font = await getFont(annotation.fontFamily);
-        const color = hexToRgb(annotation.color);
+        const color = colorOf(annotation.color);
 
         const lineHeight = fontSize * 1.2;
         const ascent = fontSize * ASCENT;
