@@ -67,6 +67,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <div className="flex items-center space-x-2">
               <FileText className="w-5 h-5 text-blue-600" />
               <span className="font-semibold text-slate-800">PDF Annotator</span>
+              <span className="text-[11px] text-slate-400 font-normal">v{__APP_VERSION__}</span>
             </div>
             <a
               href="https://skale.dev"
