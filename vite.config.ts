@@ -10,6 +10,9 @@ const pkg = JSON.parse(
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // App is served under the skale.dev/pdf-editor subpath (transparent proxy),
+  // so all asset/worker/chunk URLs are prefixed accordingly.
+  base: '/pdf-editor/',
   plugins: [react()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
