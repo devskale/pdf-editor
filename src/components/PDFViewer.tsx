@@ -74,11 +74,14 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
 
       try {
         // Start rendering the page on the canvas
-        renderTaskRef.current = page.render(renderContext);
+        renderTaskRef.current = page.render({
+          ...renderContext,
+          canvas: canvasRef.current,
+        });
         await renderTaskRef.current.promise;
       } catch (error) {
         // Ignore cancellation errors and re-throw others
-        if (error.name !== 'RenderingCancelledException') {
+        if ((error as Error).name !== 'RenderingCancelledException') {
           throw error;
         }
       } finally {

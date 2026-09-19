@@ -215,7 +215,7 @@ export const TextAnnotation: React.FC<TextAnnotationProps> = ({
   useEffect(() => {
     if (!isDragging && !isResizing) return;
     const onMove = (e: MouseEvent) => handlersRef.current.move(e);
-    const onUp = (e: MouseEvent) => handlersRef.current.up(e);
+    const onUp = () => handlersRef.current.up();
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
     return () => {

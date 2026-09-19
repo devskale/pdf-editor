@@ -76,6 +76,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             accept=".pdf"
             onChange={handleFileInput}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            aria-label="Choose PDF file"
           />
 
           <div
@@ -90,7 +91,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             <p className="text-base font-semibold text-slate-700">
               {isDragOver ? 'Drop your PDF here' : 'Drag & drop your PDF'}
             </p>
-            <p className="text-sm text-slate-400 mt-0.5">or click to browse</p>
+            <p className="text-slate-600">or click to browse</p>
           </div>
 
           <span className="mt-1 inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg shadow-sm">
@@ -98,7 +99,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           </span>
         </div>
 
-        <p className="mt-6 text-xs text-slate-400 text-center">
+        <p className="mt-6 text-xs text-slate-500 text-center">
           Supports PDF files
         </p>
       </div>

@@ -9,6 +9,7 @@ import { Annotation } from './types';
 function App() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isAddingText, setIsAddingText] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   
   const {
     pdfState,
@@ -53,9 +54,20 @@ function App() {
   const handleFileUpload = async (file: File) => {
     try {
       await loadPDF(file);
+      setLoadError(null);
     } catch (error) {
       console.error('Failed to load PDF:', error);
-      alert('Failed to load PDF. Please try again.');
+      setLoadError('Failed to load PDF. The file may be corrupt or password-protected. Please try again.');
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      await savePDF();
+      setLoadError(null);
+    } catch (error) {
+      console.error('Failed to save PDF:', error);
+      setLoadError('Failed to save PDF. Please try again.');
     }
   };
 
@@ -78,16 +90,23 @@ function App() {
   };
 
   const selectedAnnotation = pdfState.selectedAnnotation 
-    ? pdfState.annotations.find(ann => ann.id === pdfState.selectedAnnotation)
+    ? (pdfState.annotations.find(ann => ann.id === pdfState.selectedAnnotation) ?? null)
     : null;
 
   if (!pdfState.document) {
     return (
-      <FileUpload
-        onFileUpload={handleFileUpload}
-        isDragOver={isDragOver}
-        onDragOver={setIsDragOver}
-      />
+      <main>
+        {loadError && (
+          <div role="alert" className="max-w-md mx-auto mt-6 px-4">
+            <p className="rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm px-4 py-3">{loadError}</p>
+          </div>
+        )}
+        <FileUpload
+          onFileUpload={handleFileUpload}
+          isDragOver={isDragOver}
+          onDragOver={setIsDragOver}
+        />
+      </main>
     );
   }
 
@@ -103,14 +122,19 @@ function App() {
         onScaleChange={setScale}
         onUndo={undo}
         onRedo={redo}
-        onSave={savePDF}
+        onSave={handleSave}
         onAddTextbox={handleAddTextbox}
         selectedAnnotationId={pdfState.selectedAnnotation}
         onCopyAnnotation={copyAnnotation}
         onFileUpload={handleFileUpload}
       />
+      {loadError && (
+        <div role="alert" className="px-4 py-2">
+          <p className="rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm px-4 py-2">{loadError}</p>
+        </div>
+      )}
       
-      <div className="flex flex-1 overflow-hidden">
+      <main className="flex flex-1 overflow-hidden">
         <PDFViewer
           document={pdfState.document}
           currentPage={pdfState.currentPage}
@@ -127,7 +151,7 @@ function App() {
           annotation={selectedAnnotation}
           onUpdate={(updates) => selectedAnnotation && updateAnnotation(selectedAnnotation.id, updates)}
         />
-      </div>
+      </main>
     </div>
   );
 }

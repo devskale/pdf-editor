@@ -367,7 +367,11 @@ export const usePDFEditor = () => {
       }
 
       const pdfBytes = await pdfDoc.save();
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      // Blob-part typing: coerce to a standalone ArrayBuffer (shared-buffer types)
+      const blob = new Blob(
+        [pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer],
+        { type: 'application/pdf' }
+      );
       const url = URL.createObjectURL(blob);
 
       const baseName = originalFileNameRef.current.replace(/\.pdf$/i, '');
