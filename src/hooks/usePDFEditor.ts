@@ -2,31 +2,22 @@ import { useState, useCallback, useRef } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import type { PDFFont, StandardFonts } from 'pdf-lib';
 import { Annotation, PDFState } from '../types';
+import {
+  hexToRgb01, sanitizeFontSize, fontKeyFor,
+  lineHeightFor, firstBaselineFor, textXFor,
+} from '../lib/pdfLayout';
 // Bundle the PDF.js worker locally (no CDN) for v6 compatibility.
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
-const ALLOWED_FONT_SIZES = [6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32];
-
-// Visual padding (PDF points) mirroring the `p-2` padding used on screen so the
-// saved layout matches what the user sees.
-const PAD = 8;
-// Typical ascent/descent ratio for the standard fonts (good enough for layout).
-const ASCENT = 0.8;
-const DESCENT = 0.2;
-
 const genId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
     : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-const hexToRgb = (hex: string) => ({
-  r: parseInt(hex.slice(1, 3), 16) / 255,
-  g: parseInt(hex.slice(3, 5), 16) / 255,
-  b: parseInt(hex.slice(5, 7), 16) / 255,
-});
+const hexToRgb = (hex: string) => hexToRgb01(hex);
 
 export const usePDFEditor = () => {
   const [pdfState, setPDFState] = useState<PDFState>({
@@ -253,14 +244,7 @@ export const usePDFEditor = () => {
 
     try {
       // Lazy-load pdf-lib (only needed when saving) to keep it out of the main bundle.
-      const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
-      const FONT_MAP: Record<string, StandardFonts> = {
-        Helvetica: StandardFonts.Helvetica,
-        Arial: StandardFonts.Helvetica,
-        'Times New Roman': StandardFonts.TimesRoman,
-        'Courier New': StandardFonts.Courier,
-        Georgia: StandardFonts.TimesRoman,
-      };
+      const { PDFDocument, rgb } = await import('pdf-lib');
       const colorOf = (hex: string) => {
         const c = hexToRgb(hex);
         return rgb(c.r, c.g, c.b);
@@ -272,7 +256,7 @@ export const usePDFEditor = () => {
       // Embed each unique font once.
       const fontCache: Partial<Record<StandardFonts, PDFFont>> = {};
       const getFont = async (family: string): Promise<PDFFont> => {
-        const std = FONT_MAP[family] ?? StandardFonts.Helvetica;
+        const std = fontKeyFor(family) as StandardFonts;
         if (!fontCache[std]) {
           fontCache[std] = await pdfDoc.embedFont(std);
         }
@@ -305,56 +289,27 @@ export const usePDFEditor = () => {
         const text = annotation.text;
         if (!text.trim()) continue;
 
-        const fontSize = ALLOWED_FONT_SIZES.includes(annotation.fontSize)
-          ? annotation.fontSize
-          : 14;
+        const fontSize = sanitizeFontSize(annotation.fontSize);
         const font = await getFont(annotation.fontFamily);
         const color = colorOf(annotation.color);
 
-        const lineHeight = fontSize * 1.2;
-        const ascent = fontSize * ASCENT;
-        const descent = fontSize * DESCENT;
+        const lineHeight = lineHeightFor(fontSize);
 
         const lines = text.split('\n');
         const n = lines.length;
-        const blockHeight = (n - 1) * lineHeight + ascent + descent;
-
-        const innerTop = pdfY + boxH - PAD;
-        const innerBottom = pdfY + PAD;
 
         // Baseline of the first (top) line, depending on vertical alignment.
-        let firstBaseline: number;
-        switch (annotation.verticalAlign) {
-          case 'middle':
-            firstBaseline = (innerTop + innerBottom) / 2 + blockHeight / 2 - ascent;
-            break;
-          case 'bottom':
-            firstBaseline = innerBottom + descent + (n - 1) * lineHeight;
-            break;
-          case 'top':
-          default:
-            firstBaseline = innerTop - ascent;
-            break;
-        }
+        const firstBaseline = firstBaselineFor(
+          annotation.verticalAlign, pdfY, boxH, n, fontSize
+        );
 
         lines.forEach((line, index) => {
           const baseline = firstBaseline - index * lineHeight;
 
-          let textX: number;
           if (line.trim() === '') return;
-          const textWidth = font.widthOfTextAtSize(line, fontSize);
-          switch (annotation.textAlign) {
-            case 'center':
-              textX = pdfX + (boxW - textWidth) / 2;
-              break;
-            case 'right':
-              textX = pdfX + boxW - PAD - textWidth;
-              break;
-            case 'left':
-            default:
-              textX = pdfX + PAD;
-              break;
-          }
+          const textX = textXFor(
+            annotation.textAlign, pdfX, boxW, font.widthOfTextAtSize(line, fontSize)
+          );
 
           page.drawText(line, {
             x: textX,
